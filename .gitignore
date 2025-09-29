@@ -1,0 +1,7 @@
+*.o
+*.txt
+rcv
+ncp
+t_ncp
+t_rcv
+.vscode
