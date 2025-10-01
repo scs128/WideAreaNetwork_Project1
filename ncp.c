@@ -43,12 +43,14 @@ int main(int argc, char *argv[]) {
     struct sockaddr_storage from_addr;
     socklen_t               from_len;
     fd_set                  mask, read_mask;
-    int                     bytes, num, ret;
+    int                     milestone, prev_milestone_bytes, transmitted_bytes, file_bytes, bytes, num, ret;
     char                    input_buf[MAX_MESS_LEN];
     ncp_msg                 send_pkt;
     rcv_msg                 recvd_pkt;
     struct timeval          timeout;
     struct timeval          now;
+    struct timeval          start;
+    struct timeval          step; // Used for 10MB steps
     int                     seq, first_seq;
 
     /* Initialize */
@@ -93,7 +95,6 @@ int main(int argc, char *argv[]) {
     /* Set up mask for file descriptors we want to read from */
     FD_ZERO(&read_mask);
     FD_SET(sock, &read_mask);
-    FD_SET((long)0, &read_mask); /* 0 == stdin */
     
     printf("Successfully initialized with:\n");
     printf("\tLoss rate = %d\n", Loss_rate);
@@ -107,15 +108,19 @@ int main(int argc, char *argv[]) {
         printf("\tMode = WAN\n");
     }
 
+    printf("\tWindow Size = %d\n", WINDOW_SIZE); //
     // Set initial sequence number, will become the last seq number in window
     seq = 0;
-    first_seq = 0;
+    first_seq = -1;
+    transmitted_bytes = 0;
+    prev_milestone_bytes = 0;
+    file_bytes = 0;
+    milestone = 1;
 
     // Open File to be transmitted
     FILE* file = fopen(Src_filename, "rb");
-    struct stat st; 
-    stat(Src_filename, &st);
-    uint64_t file_size = (uint64_t)st.st_size;
+    struct stat file_stats; 
+    stat(Src_filename, &file_stats);
 
     // Initialize Window Buffer
     circular_buffer window = {
@@ -124,12 +129,22 @@ int main(int argc, char *argv[]) {
         .maxlen = WINDOW_SIZE
     };
 
+    
+
     while(keep_running)
     {
         /* (Re)set mask */
-        mask = read_mask;
-        timeout.tv_sec = 10;
+        if (seq < first_seq + WINDOW_SIZE && first_seq != 0) {
+            FD_SET((long)0, &read_mask); /* 0 == stdin */
+            mask = read_mask;  
+        } else {
+            FD_ZERO(&read_mask);
+            FD_SET(sock, &read_mask);
+            mask = read_mask; 
+        }
+        timeout.tv_sec = 5;
         timeout.tv_usec = 0;
+        
 
         /* Wait for message (NULL timeout = wait forever) */
         num = select(FD_SETSIZE, &mask, NULL, NULL, &timeout);
@@ -140,27 +155,59 @@ int main(int argc, char *argv[]) {
                           (struct sockaddr *)&from_addr, 
                           &from_len);
 
+                //printf("Received packet seq: %d\tflag %d\n", recvd_pkt.seq, recvd_pkt.flag);
+
+                /* Acknowledgement Flag Handling */
                 if (recvd_pkt.flag == PKT_BUSY){
                     Print_IP((struct sockaddr *)&from_addr);
                     printf("Receiver was busy.\n");
+                }else if(recvd_pkt.flag == PKT_FIN) {
+                    /* Print Final Statistics and exit */
+                    gettimeofday(&now, NULL);
+                    printf("Total time to transmit %f seconds\n", now.tv_sec - start.tv_sec + ((float) now.tv_usec - start.tv_usec)/1000000);
+                    printf("File Bytes transmitted successfully: %d\n", file_bytes);
+                    printf("Total Transmitted Bytes w/ retransmissions: %d\n", transmitted_bytes);
+                    float throughput = (transmitted_bytes) * 8 / 1000000 / (now.tv_sec - start.tv_sec + ((float) now.tv_usec - start.tv_usec)/1000000);
+                    printf("Total throughput: %f Mb/sec\n\n", throughput);
+                    break;
                 }else if (recvd_pkt.flag == PKT_ACK){
-                    printf("Acknowledgement received up to seq: %d\n", recvd_pkt.seq);
-                    if(recvd_pkt.seq == 0){
+                    //printf("Acknowledgement received up to seq: %d\n", recvd_pkt.seq);
+                    if(recvd_pkt.seq == 1 && first_seq == 0){ //
+                        //first_seq = seq;
+                        //printf("Acknowledgement of seq number 0 pops seq number %d\n", circ_bbuf_pop(&window)->seq);
+                        circ_bbuf_pop(&window);
                         seq++;
+                        first_seq++;
                     }else{ // Shift window up to revd_pkt.seq 
-                        while(first_seq < recvd_pkt.seq){ // cumulative ack handling
-                            circ_bbuf_pop(&window);
-                            printf("Popped head of window and shifted.\n");
+                        while(first_seq < recvd_pkt.seq){ // cumulative ack handling 
+                            //printf("Popped head of window and shifted. Seq: %d\n", );
+                            file_bytes += circ_bbuf_pop(&window)->size;
+                            if(file_bytes > milestone * MB * 10) {// check if total crossed 10MB milestone 
+                                gettimeofday(&now, NULL);
+                                // Print Total bytes transferred and transfer rate for 10MB step
+                                printf("File Bytes transmitted successfully: %d\n", file_bytes);
+                                float throughput = (transmitted_bytes-prev_milestone_bytes) * 8 / 1000000 / (now.tv_sec - step.tv_sec + ((float) now.tv_usec - step.tv_usec)/1000000);
+                                printf("Throughput of last 10MB: %f Mb/sec\n\n", throughput);//
+
+                                // Reset or advance variables
+                                milestone++;
+                                prev_milestone_bytes = transmitted_bytes;
+                                gettimeofday(&step, NULL);
+                            }
                             first_seq++;
                         }
 
                         // NACK handling
-                        printf("Current Seq: %d\n", seq);
+                        //printf("Current Seq: %d\n", seq);
                         bool *buf = recvd_pkt.buffer;
                         for(int i = 0; i < seq-first_seq; i++){
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
-                                printf("Retransmitting window index %d\n", i);
-                                sendto_dbg(sock, circ_bbuf_get(&window, i),
+                                
+                                send_pkt = *circ_bbuf_get(&window, i);
+                                //printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
+
+                                transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
+                                sendto_dbg(sock, &send_pkt,
                                     sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload), 0,
                                     servaddr->ai_addr,
                                     servaddr->ai_addrlen);
@@ -172,21 +219,30 @@ int main(int argc, char *argv[]) {
                 //printf("Received message: %s\n", recvd_pkt.payload);
 
             } else if (FD_ISSET(0, &mask) && seq < first_seq + WINDOW_SIZE) { // Create and send packet when window has space (seq is less than the last sequence number in the window)           
+                gettimeofday(&now, NULL);
                 send_pkt.ts_sec  = now.tv_sec;
                 send_pkt.ts_usec = now.tv_usec;
-                if(seq == 0){ // send start message, will only increase seq when this has been acknowledged.
+                if(seq == 0 && first_seq == -1){ // send start message, will only increase seq when this has been acknowledged.
+                    // Mark time of beginning transmission
+                    gettimeofday(&start, NULL);
+                    gettimeofday(&step, NULL);
+                    //printf("Start seconds %d\n", start.tv_sec );
+
                     send_pkt.seq = seq;
                     send_pkt.flag = PKT_START;
                     strcpy(send_pkt.payload, Dst_filename);
-                    printf("Start packet payload: %s", send_pkt.payload);
 
+                    circ_bbuf_push(&window, &send_pkt, send_pkt.seq);
+                    //printf("Start packet payload: %s", send_pkt.payload);
+                    first_seq = 0;
+
+                    transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
                     sendto_dbg(sock, &send_pkt,
                         sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload), 0,
                         servaddr->ai_addr,
                         servaddr->ai_addrlen);
-                }else{ // send packets
+                }else if(!feof(file) && seq > 0){ // send packets while not at end of file and seq is not 0
                     /* Fill in header info */
-                    gettimeofday(&now, NULL);
                     send_pkt.seq = seq++;
                     send_pkt.flag = PKT_DATA;
 
@@ -194,23 +250,52 @@ int main(int argc, char *argv[]) {
                     size_t bytes_read = fread(send_pkt.payload, sizeof(char), MAX_MESS_LEN-1, file);
                     send_pkt.payload[bytes_read] = '\0';
 
+                    send_pkt.size = bytes_read;
+                    //file_bytes += bytes_read;
+
                     //printf("Packet payload: %s\n", send_pkt.payload);
                     
 
-                    circ_bbuf_push(&window, &send_pkt, send_pkt.seq);
+                    circ_bbuf_push(&window, &send_pkt, send_pkt.seq-first_seq);
 
-                    printf("Sending packet seq: %d\n", send_pkt.seq);
+                    //printf("Sending packet seq: %d\n", send_pkt.seq);
 
+                    transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+bytes_read;
                     sendto_dbg(sock, &send_pkt,
                         sizeof(send_pkt)-MAX_MESS_LEN+bytes_read, 0,
+                        servaddr->ai_addr,
+                        servaddr->ai_addrlen);
+                }else if(feof(file) && seq == first_seq){ // All packets have been acknowledged, send closing packet
+                    //printf("I hope I made it here first try\n");
+                    send_pkt.flag = PKT_FIN;
+                    send_pkt.seq = seq++;
+
+                    circ_bbuf_push(&window, &send_pkt, send_pkt.seq-first_seq);
+                    //printf("Sending closing packet w/ seq: %d\n", send_pkt.seq);
+
+                    transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
+                    sendto_dbg(sock, &send_pkt,
+                        sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload), 0,
                         servaddr->ai_addr,
                         servaddr->ai_addrlen);
                 }
                 
                 
             }
-        } else { // timeout occured, resend window
+        } else { // timeout occured, resend window//
+            // printf("Timeout occured: retransmitting window\n");
+            for(int i = 0; i < WINDOW_SIZE; i++){
+                ncp_msg *pkt = circ_bbuf_get(&window, i);
+                if(pkt != NULL){ // Packet not received yet, retransmit packet from window
+                    //printf("Retransmitting seq %d\n", pkt->seq);
 
+                    transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
+                    sendto_dbg(sock, circ_bbuf_get(&window, i),
+                        sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload), 0,
+                        servaddr->ai_addr,
+                        servaddr->ai_addrlen);
+                }
+            }
         }
     }
 

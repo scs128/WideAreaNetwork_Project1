@@ -9,6 +9,8 @@
 
 #define MAX_MESS_LEN 1400
 
+#define MB 1000000
+
 #define MODE_LAN 1
 #define MODE_WAN 2
 
@@ -18,13 +20,16 @@
 #define PKT_ACK        4 
 #define PKT_BUSY       5
 
-#define WINDOW_SIZE 5
+#define WINDOW_SIZE 425
+
+#define MAX_RETRANSMISSIONS 5
 
     typedef struct dummy_ncp_msg {
         /* Fill in header information needed for your protocol */
         int flag;
         uint32_t seq;
         char payload[MAX_MESS_LEN];
+        int size;
         int64_t  ts_sec;
         int32_t  ts_usec;
     } ncp_msg;

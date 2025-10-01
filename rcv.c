@@ -27,6 +27,7 @@ static int Mode;
 static char *Port_Str;
 
 u_int32_t               expected_seq, last_seq;
+int                     written_bytes;
 
 static const struct timeval Zero_time = {0, 0};
 
@@ -42,12 +43,15 @@ int main(int argc, char *argv[]) {
     socklen_t               from_len, session_len;
     int                     sock;
     fd_set                  mask, read_mask;
-    int                     bytes, num, ret;
+    int                     milestone, prev_milestone_bytes, received_bytes, bytes, num, ret, close_retransmissions;
     // char                    mess_buf[MAX_MESS_LEN];
     struct timeval          timeout;
     struct timeval          last_recv_time = {0, 0};
     struct timeval          now;
     struct timeval          diff_time;
+    struct timeval          temp;
+    struct timeval          step;
+    struct timeval          start;
     ncp_msg                 recvd_pkt;  // NOTE: will need to change to ncp_packet at somepoint
     char                    hbuf[NI_MAXHOST], sbuf[NI_MAXSERV], session_hbuf[NI_MAXHOST], session_sbuf[NI_MAXSERV];
     bool                    active_session;
@@ -129,8 +133,13 @@ int main(int argc, char *argv[]) {
 
     printf("Listening on IP address: %s:%s\n\n", hbuf, sbuf);
 
-    /* Hard Coded seq number start, will be filled by starting message of transmission. */
+    /* Hard Coded seq number start, will be filled by starting message of transmission. *///
     expected_seq = 0;
+    close_retransmissions = -1;
+    received_bytes = 0;
+    prev_milestone_bytes = 0;
+    written_bytes = 0;
+    milestone = 1;
 
     /* Set up mask for file descriptors we want to read from */
     FD_ZERO(&read_mask);
@@ -143,8 +152,8 @@ int main(int argc, char *argv[]) {
     {
         /* (Re)set mask and timeout */
         mask = read_mask;
-        timeout.tv_sec = 10;
-        timeout.tv_usec = 0;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 40000;
 
         /* Wait for message or timeout */
         num = select(FD_SETSIZE, &mask, NULL, NULL, &timeout);
@@ -170,17 +179,10 @@ int main(int argc, char *argv[]) {
                 if(recvd_pkt.flag == PKT_START){
                     /* Establish active session on start packet */
                     rcv_msg ack_pkt = {
-                        .seq = recvd_pkt.seq,
+                        .seq = recvd_pkt.seq+1,
                         .buffer = NULL
                     };
-                    printf("Start packet payload: %s", recvd_pkt.payload);
-
-                    // Get trip time length
-                    if (Cmp_time(last_recv_time, Zero_time) > 0) {
-                        timersub(&last_recv_time, &recvd_pkt.ts_sec, &diff_time);
-                        printf("last msg received %lf seconds ago.\n\n",
-                                diff_time.tv_sec + (diff_time.tv_usec / 1000000.0));
-                    }
+                    //printf("Start packet payload: %s\n", recvd_pkt.payload);
 
                     if (!active_session /*&& recvd_pkt.flag == PKT_START*/){
                         strcpy(session_hbuf, hbuf);
@@ -192,41 +194,82 @@ int main(int argc, char *argv[]) {
                         active_session = true;
                         printf("Establishing session with %s:%s\n", session_hbuf, session_sbuf);
 
+                        gettimeofday(&start, NULL);
+                        gettimeofday(&step, NULL);
+
                         ack_pkt.flag = PKT_ACK;
                     }else{
-                        printf("Dropped packet. %s:%s is not the active session client.\n", hbuf, sbuf);
+                        //printf("Dropped packet. %s:%s is not the active session client.\n", hbuf, sbuf);
                         ack_pkt.flag = PKT_BUSY;
                     }
-                    sendto_dbg(sock, &ack_pkt, bytes, 0, (struct sockaddr *)&from_addr,
+                    sendto_dbg(sock, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&from_addr,
                         from_len);
+                }else if (recvd_pkt.flag == PKT_FIN) {
+                    // Build response packet acknowledging the closing packet
+                    // It will be set to resend a minimum amount of time before the receiver times out and enters listening mode
+                    gettimeofday(&now, NULL);
+                    printf("Total time to transmit %f seconds\n", now.tv_sec - start.tv_sec + ((float) now.tv_usec - start.tv_usec)/1000000);
+                    printf("File Bytes transmitted successfully: %d\n", written_bytes);
+                    float throughput = (written_bytes) * 8 / 1000000 / (now.tv_sec - start.tv_sec + ((float) now.tv_usec - start.tv_usec)/1000000);
+                    printf("Total throughput: %f Mb/sec\n\n", throughput);
+
+                    expected_seq = recvd_pkt.seq;
+                    rcv_msg ack_pkt = {
+                        .seq = expected_seq,
+                        .buffer = NULL,
+                        .flag = PKT_FIN
+                    };
+                    
+
+                    sendto_dbg(sock, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&from_addr,
+                        from_len);
+
+                    if (strcmp(session_hbuf, hbuf) == 0 && strcmp(session_sbuf, sbuf) == 0){ // Only enters ensured retransmission for current session client
+                        timeout.tv_sec = 10;
+                        close_retransmissions = 0; // Will keep track of number of retransmission of closing acknowledgement and signal timeouts to use this.
+                    }
                 }else if (recvd_pkt.flag == PKT_DATA) {
                     /* Process data - write to file or store in buffer */
                     if(strcmp(session_hbuf, hbuf) == 0 && strcmp(session_sbuf, sbuf) == 0){
                         if(recvd_pkt.seq > (expected_seq + WINDOW_SIZE - 1) || recvd_pkt.seq < expected_seq){
-                            printf("Dropped packet seq %d outside of current window.\n", recvd_pkt.seq);
+                            //printf("Dropped packet seq %d outside of current window.\n", recvd_pkt.seq);
                         }else if(recvd_pkt.seq == expected_seq){
                             // Deliver to application and progress expected seq
-                            printf("Writing to file.\n");
                             fwrite(recvd_pkt.payload, 1, strlen(recvd_pkt.payload), file);
+                            written_bytes += strlen(recvd_pkt.payload);
+                            if(written_bytes > milestone * MB * 10) {// check if total crossed 10MB milestone 
+                                gettimeofday(&now, NULL);
+                                // Print Total bytes transferred and transfer rate for 10MB step
+                                printf("File bytes written successfully: %d\n", written_bytes);
+                                float throughput = (written_bytes-prev_milestone_bytes) * 8 / 1000000 / (now.tv_sec - step.tv_sec + ((float) now.tv_usec - step.tv_usec)/1000000);
+                                printf("Throughput of last 10MB: %f Mb/sec\n\n", throughput);//
+
+                                // Reset or advance variables
+                                milestone++;
+                                prev_milestone_bytes = written_bytes;
+                                gettimeofday(&step, NULL);
+                            }
+
+
                             expected_seq++;
                             circ_bbuf_shift(&buf, file); // Shift buffer until new pointer is NULL, writing any packets in the process
                         }else{
                             // Store in buf at corresponding position
                             
                             if(circ_bbuf_push(&buf, &recvd_pkt, (recvd_pkt.seq - expected_seq)) == 0){
-                                printf("Stored seq: %d in buffer", recvd_pkt.seq);
+                                //printf("Stored seq: %d in buffer\n", recvd_pkt.seq);
                             }
                         }
                     }else{
                         // Sender is not current client, send busy acknowledgement
-                        printf("Dropping packet. %s:%s is not the active session client.\n", hbuf, sbuf);
+                        printf("Dropped packet from %s:%s. Not active session client.\n", hbuf, sbuf);
                         
                         /* Do I really need to respond to non-startup attempts?
                         rcv_msg ack_pkt = {
                             .flag = PKT_BUSY,
                             .seq = recvd_pkt.seq,
                             .buffer = NULL
-                        };
+                        };//
                         printf("Size of acknowledgement: %lu", sizeof(ack_pkt));
                         sendto_dbg(sock, &ack_pkt, bytes, 0, (struct sockaddr *)&from_addr,
                         from_len);
@@ -237,31 +280,59 @@ int main(int argc, char *argv[]) {
         } else { // timeout occured
             /* Send Cumulative Acknowledgement and NACK packet when in active session */
             if(active_session){
-                rcv_msg ack_pkt = {
-                    .flag = PKT_ACK,
-                    .seq = expected_seq-1,
-                };
+                //printf("Close Retransmission Count: %d\n", close_retransmissions);
+                if (close_retransmissions >=0){
+                    rcv_msg ack_pkt = {
+                        .seq = expected_seq,
+                        .buffer = NULL,
+                        .flag = PKT_FIN
+                    };
+                    
+                    //printf("Ack_pkt flag value: %d\n", ack_pkt.flag);
+                    
+                    sendto_dbg(sock, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&session_addr,
+                           session_len);
 
-                // Put together buffer view
-                for(int i = 0; i < buf.maxlen; i++){
-                    ack_pkt.buffer[i] = (circ_bbuf_get(&buf, i) != NULL);
+                    close_retransmissions++;
+                    //printf("Again Close Retransmission Count: %d\n", close_retransmissions);
+                    if(close_retransmissions >= MAX_RETRANSMISSIONS){ 
+                        printf("Closing file and returning to listening.\n");
+                        active_session = false;
+                        expected_seq = 0;
+                        close_retransmissions = -1;
+                        fclose(file);
+                        for(int i = 0; i < WINDOW_SIZE; i++){
+                            ncp_msg *pkt = circ_bbuf_pop(&buf);
+                            if(pkt != NULL){
+                                //printf("Seq: %d\t Payload: %s\n", pkt->seq, pkt->payload);
+                            }
+                        }
+                        printf("Listening on IP address: %s:%s\n\n", hbuf, sbuf);                  }
+                }else{
+                    rcv_msg ack_pkt = {
+                        .flag = PKT_ACK,
+                        .seq = expected_seq,
+                    };
+    
+                    // Put together buffer view
+                    for(int i = 0; i < buf.maxlen; i++){
+                        ack_pkt.buffer[i] = (circ_bbuf_get(&buf, i) != NULL);
+                    }
+                    //session_len = sizeof(session_addr);
+    
+                    sendto_dbg(sock, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&session_addr,
+                           session_len);
+                    //printf("Sending Cumulative Acknowledgement Packet\n");
                 }
-                //session_len = sizeof(session_addr);
-
-
-                sendto_dbg(sock, &ack_pkt, bytes, 0, (struct sockaddr *)&session_addr,
-                       session_len);
-                printf("Sending Acknowledgement Packet\n");
-                
-            }
-
-            printf("timeout...nothing received for 10 seconds.\n");
-            gettimeofday(&now, NULL);
-            if (Cmp_time(last_recv_time, Zero_time) > 0) {
-                timersub(&now, &last_recv_time, &diff_time);
-                printf("last msg received %lf seconds ago.\n\n",
-                        diff_time.tv_sec + (diff_time.tv_usec / 1000000.0));
-            }
+            }/* else{
+                //printf("timeout...nothing received for 10 seconds.\n");
+                gettimeofday(&now, NULL);
+                if (Cmp_time(last_recv_time, Zero_time) > 0) {
+                    timersub(&now, &last_recv_time, &diff_time);
+                    //printf("last msg received %lf seconds ago.\n\n",
+                            //diff_time.tv_sec + (diff_time.tv_usec / 1000000.0));
+                }
+            } */
         }
     }
 
@@ -366,6 +437,7 @@ void circ_bbuf_shift(circular_buffer *cb, FILE* file){
     while(pkt != NULL){
         // Write to file
         fwrite(pkt->payload, 1, strlen(pkt->payload), file);
+        written_bytes += strlen(pkt->payload);
 
         // Set to null and shift
         cb->buffer[cb->head] = NULL;
