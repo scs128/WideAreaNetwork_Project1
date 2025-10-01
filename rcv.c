@@ -52,7 +52,6 @@ int main(int argc, char *argv[]) {
     struct timeval          temp;
     struct timeval          step;
     struct timeval          start;
-    int                     window_size;
     ncp_msg                 recvd_pkt;  // NOTE: will need to change to ncp_packet at somepoint
     char                    hbuf[NI_MAXHOST], sbuf[NI_MAXSERV], session_hbuf[NI_MAXHOST], session_sbuf[NI_MAXSERV];
     bool                    active_session;
@@ -74,6 +73,13 @@ int main(int argc, char *argv[]) {
     hints.ai_family = AF_INET; /* we'll use AF_INET for IPv4, but can use AF_INET6 for IPv6 or AF_UNSPEC if either is ok */
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_flags = AI_PASSIVE; /* indicates that I want to get my own IP address */
+
+    /* Initialize Buffer */
+    circular_buffer buf = {
+            .head = 0,
+            .seq = 0,
+            .maxlen = WINDOW_SIZE
+        };
 
     ret = getaddrinfo(NULL, Port_Str, &hints, &servinfo);
     if (ret != 0) {
@@ -120,20 +126,10 @@ int main(int argc, char *argv[]) {
     printf("\tLoss rate = %d\n", Loss_rate);
     printf("\tPort = %s\n", Port_Str);
     if (Mode == MODE_LAN) {
-        window_size = LAN_WINDOW_SIZE;
         printf("\tMode = LAN\n");
     } else { /*(Mode == WAN)*/
-        window_size = WAN_WINDOW_SIZE;
         printf("\tMode = WAN\n");
     }
-
-    /* Initialize Buffer */
-    
-    circular_buffer buf = {
-        .head = 0,
-        .seq = 0,
-        .maxlen = window_size
-    };
 
     printf("Listening on IP address: %s:%s\n\n", hbuf, sbuf);
 
@@ -157,11 +153,7 @@ int main(int argc, char *argv[]) {
         /* (Re)set mask and timeout */
         mask = read_mask;
         timeout.tv_sec = 0;
-        if(Mode == MODE_LAN){
-            timeout.tv_usec = 200; // LAN - 200, WAN - 40000
-        }else{
-            timeout.tv_usec = 40000; // WAN - 40000
-        }
+        timeout.tv_usec = 200; // LAN - 200, WAN - 40000
 
         /* Wait for message or timeout */
         num = select(FD_SETSIZE, &mask, NULL, NULL, &timeout);
@@ -239,7 +231,7 @@ int main(int argc, char *argv[]) {
                 }else if (recvd_pkt.flag == PKT_DATA) {
                     /* Process data - write to file or store in buffer */
                     if(strcmp(session_hbuf, hbuf) == 0 && strcmp(session_sbuf, sbuf) == 0){
-                        if(recvd_pkt.seq > (expected_seq + window_size - 1) || recvd_pkt.seq < expected_seq){
+                        if(recvd_pkt.seq > (expected_seq + WINDOW_SIZE - 1) || recvd_pkt.seq < expected_seq){
                             //printf("Dropped packet seq %d outside of current window.\n", recvd_pkt.seq);
                         }else if(recvd_pkt.seq == expected_seq){
                             // Deliver to application and progress expected seq
@@ -309,7 +301,7 @@ int main(int argc, char *argv[]) {
                         expected_seq = 0;
                         close_retransmissions = -1;
                         fclose(file);
-                        for(int i = 0; i < window_size; i++){
+                        for(int i = 0; i < WINDOW_SIZE; i++){
                             ncp_msg *pkt = circ_bbuf_pop(&buf);
                             if(pkt != NULL){
                                 //printf("Seq: %d\t Payload: %s\n", pkt->seq, pkt->payload);
@@ -345,7 +337,7 @@ int main(int argc, char *argv[]) {
     }
 
     fclose(file);
-    for(int i = 0; i < window_size; i++){
+    for(int i = 0; i < WINDOW_SIZE; i++){
         ncp_msg *pkt = circ_bbuf_pop(&buf);
         if(pkt != NULL){
             printf("Seq: %d\t Payload: %s\n", pkt->seq, pkt->payload);
