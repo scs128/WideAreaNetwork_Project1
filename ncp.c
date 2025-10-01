@@ -51,6 +51,7 @@ int main(int argc, char *argv[]) {
     struct timeval          now;
     struct timeval          start;
     struct timeval          step; // Used for 10MB steps
+    int                     window_size;
     int                     seq, first_seq;
 
     /* Initialize */
@@ -104,11 +105,13 @@ int main(int argc, char *argv[]) {
     printf("\tPort = %s\n", Port_Str);
     if (Mode == MODE_LAN) {
         printf("\tMode = LAN\n");
+        window_size = LAN_WINDOW_SIZE;
     } else { /*(Mode == WAN)*/
         printf("\tMode = WAN\n");
+        window_size = WAN_WINDOW_SIZE;
     }
 
-    printf("\tWindow Size = %d\n", WINDOW_SIZE); //
+    printf("\tWindow Size = %d\n", window_size); //
     // Set initial sequence number, will become the last seq number in window
     seq = 0;
     first_seq = -1;
@@ -126,7 +129,7 @@ int main(int argc, char *argv[]) {
     circular_buffer window = {
         .head = 0,
         .seq = 0,
-        .maxlen = WINDOW_SIZE
+        .maxlen = window_size
     };
 
     
@@ -134,7 +137,7 @@ int main(int argc, char *argv[]) {
     while(keep_running)
     {
         /* (Re)set mask */
-        if (seq < first_seq + WINDOW_SIZE && first_seq != 0) {
+        if (seq < first_seq + window_size && first_seq != 0) {
             FD_SET((long)0, &read_mask); /* 0 == stdin */
             mask = read_mask;  
         } else {
@@ -218,7 +221,7 @@ int main(int argc, char *argv[]) {
                 
                 //printf("Received message: %s\n", recvd_pkt.payload);
 
-            } else if (FD_ISSET(0, &mask) && seq < first_seq + WINDOW_SIZE) { // Create and send packet when window has space (seq is less than the last sequence number in the window)           
+            } else if (FD_ISSET(0, &mask) && seq < first_seq + window_size) { // Create and send packet when window has space (seq is less than the last sequence number in the window)           
                 gettimeofday(&now, NULL);
                 send_pkt.ts_sec  = now.tv_sec;
                 send_pkt.ts_usec = now.tv_usec;
@@ -284,7 +287,7 @@ int main(int argc, char *argv[]) {
             }
         } else { // timeout occured, resend window//
             // printf("Timeout occured: retransmitting window\n");
-            for(int i = 0; i < WINDOW_SIZE; i++){
+            for(int i = 0; i < window_size; i++){
                 ncp_msg *pkt = circ_bbuf_get(&window, i);
                 if(pkt != NULL){ // Packet not received yet, retransmit packet from window
                     //printf("Retransmitting seq %d\n", pkt->seq);

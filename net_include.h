@@ -20,7 +20,8 @@
 #define PKT_ACK        4 
 #define PKT_BUSY       5
 
-#define WINDOW_SIZE 425
+#define LAN_WINDOW_SIZE 3
+#define WAN_WINDOW_SIZE 350
 
 #define MAX_RETRANSMISSIONS 5
 
@@ -38,7 +39,7 @@
 typedef struct dummy_rcv_msg {
     int flag;
     uint32_t seq; // Sequence number of cumulative acknowledged packet
-    bool buffer[WINDOW_SIZE]; // Receiver current buffer state from seq to last out of order packet received.
+    bool *buffer; // Receiver current buffer state from seq to last out of order packet received.
     int64_t  ts_sec;
     int32_t  ts_usec;
 } rcv_msg;
@@ -52,7 +53,7 @@ struct upkt {
 };
 
 typedef struct circ_buf {
-    ncp_msg *buffer[WINDOW_SIZE];
+    ncp_msg *buffer;
     uint32_t seq; // sequence number represented at head
     int head;
     int maxlen;
