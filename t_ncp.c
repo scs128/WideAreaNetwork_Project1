@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
     }
 
     printf("%s\n", Dst_filename);
+    Dst_filename[strlen(Dst_filename)] = '\0';
 
     ret = send(sock, Dst_filename, strlen(Dst_filename), 0);
     if (ret < 0) {
