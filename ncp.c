@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
                 
             }
         } else { // timeout occured, resend window//
-            printf("%d\n", seq < first_seq + WINDOW_SIZE);
+            printf("%d\t%d\n",seq, first_seq + WINDOW_SIZE);
             for(int i = 0; i < WINDOW_SIZE; i++){
                 ncp_msg *pkt = circ_bbuf_get(&window, i);
                 if(pkt != NULL){ // Packet not received yet, retransmit packet from window
