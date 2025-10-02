@@ -22,7 +22,7 @@
 
 #define WINDOW_SIZE 9
 
-#define MAX_RETRANSMISSIONS 5
+#define MAX_RETRANSMISSIONS 10
 
     typedef struct dummy_ncp_msg {
         /* Fill in header information needed for your protocol */
