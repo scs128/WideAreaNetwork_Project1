@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
                     printf("Total throughput: %f Mb/sec\n\n", throughput);
                     break;
                 }else if (recvd_pkt.flag == PKT_ACK){
-                    //printf("Acknowledgement received up to seq: %d\n", recvd_pkt.seq);
+                    printf("Acknowledgement received up to seq: %d\n", recvd_pkt.seq);
                     if(recvd_pkt.seq == 1 && first_seq == 0){ //
                         //first_seq = seq;
                         //printf("Acknowledgement of seq number 0 pops seq number %d\n", circ_bbuf_pop(&window)->seq);
@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
                         seq++;
                         first_seq++;
                     }else{ // Shift window up to revd_pkt.seq 
-                        //printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
+                        printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
                         while(first_seq < recvd_pkt.seq){ // cumulative ack handling 
                             //printf("Popped head of window and shifted. Seq: %d\n", );
                             file_bytes += circ_bbuf_pop(&window)->size;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
                         }
 
                         // NACK handling
-                        //printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
+                        printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
                         bool *buf = recvd_pkt.buffer;
                         for(int i = 0; i < recvd_pkt.last; i++){
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
