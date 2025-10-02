@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
             mask = read_mask; 
         }
         timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
+        timeout.tv_usec = 30000;
         
 
         /* Wait for message (NULL timeout = wait forever) */
