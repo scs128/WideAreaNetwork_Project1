@@ -58,12 +58,10 @@ int main(int argc, char *argv[]) {
     bool                    active_session;
 
     // NOTE: Dst_filename will eventually not be hard coded, and will be read in from the start message.
-    static char *Dst_filename = "output.txt";
-    FILE* file = fopen(Dst_filename, "wb");;
-    if (!file) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
-    }
+    //static char *Dst_filename = "output.txt";
+    FILE* file;
+    char* Dst_filename;
+    
 
     /* Initialize */
     Usage(argc, argv);
@@ -199,6 +197,14 @@ int main(int argc, char *argv[]) {
                         gettimeofday(&step, NULL);
 
                         ack_pkt.flag = PKT_ACK;
+
+                        Dst_filename = malloc(recvd_pkt.size + 1);
+                        strcpy(Dst_filename, recvd_pkt.payload);
+                        file = fopen(Dst_filename, "wb");
+                        if (!file) {
+                            perror("fopen");
+                            exit(EXIT_FAILURE);
+                        }
                     }else{
                         //printf("Dropped packet. %s:%s is not the active session client.\n", hbuf, sbuf);
                         ack_pkt.flag = PKT_BUSY;

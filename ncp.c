@@ -232,6 +232,7 @@ int main(int argc, char *argv[]) {
                     send_pkt.seq = seq;
                     send_pkt.flag = PKT_START;
                     strcpy(send_pkt.payload, Dst_filename);
+                    send_pkt.size = strlen(Dst_filename);
 
                     circ_bbuf_push(&window, &send_pkt, send_pkt.seq);
                     //printf("Start packet payload: %s", send_pkt.payload);
