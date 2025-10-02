@@ -199,7 +199,9 @@ int main(int argc, char *argv[]) {
                         ack_pkt.flag = PKT_ACK;
 
                         Dst_filename = malloc(recvd_pkt.size + 1);
-                        strcpy(Dst_filename, recvd_pkt.payload);
+                        memcpy(Dst_filename, recvd_pkt.payload, recvd_pkt.size);
+                        Dst_filename[recvd_pkt.size] = '\0';
+                        
                         file = fopen(Dst_filename, "wb");
                         if (!file) {
                             perror("fopen");
