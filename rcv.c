@@ -198,9 +198,11 @@ int main(int argc, char *argv[]) {
 
                         ack_pkt.flag = PKT_ACK;
 
+                        printf("Allocating memory for Dst_filename\n");
                         Dst_filename = malloc(recvd_pkt.size + 1);
                         strcpy(Dst_filename, recvd_pkt.payload);
-
+                        printf("Allocated memory for Dst_filename\n");
+                        
                         file = fopen(Dst_filename, "wb");
                         if (!file) {
                             perror("fopen");
