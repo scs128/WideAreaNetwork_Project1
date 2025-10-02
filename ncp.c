@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
 
                     transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
                     sendto_dbg(sock, &send_pkt,
-                        sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload), 0,
+                        sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload)+1, 0,
                         servaddr->ai_addr,
                         servaddr->ai_addrlen);
                 }else if(!feof(file) && seq > 0){ // send packets while not at end of file and seq is not 0
