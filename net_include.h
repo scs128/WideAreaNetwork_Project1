@@ -38,6 +38,7 @@
 typedef struct dummy_rcv_msg {
     int flag;
     uint32_t seq; // Sequence number of cumulative acknowledged packet
+    uint32_t last;
     bool buffer[WINDOW_SIZE]; // Receiver current buffer state from seq to last out of order packet received.
     int64_t  ts_sec;
     int32_t  ts_usec;

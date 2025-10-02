@@ -322,11 +322,15 @@ int main(int argc, char *argv[]) {
                     rcv_msg ack_pkt = {
                         .flag = PKT_ACK,
                         .seq = expected_seq,
+                        .last = 0
                     };
     
                     // Put together buffer view
                     for(int i = 0; i < buf.maxlen; i++){
                         ack_pkt.buffer[i] = (circ_bbuf_get(&buf, i) != NULL);
+                        if(ack_pkt.buffer[i]){
+                            ack_pkt.last = i;
+                        }
                     }
                     //session_len = sizeof(session_addr);
     
