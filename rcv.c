@@ -181,6 +181,7 @@ int main(int argc, char *argv[]) {
                         .seq = recvd_pkt.seq+1,
                         .buffer = NULL
                     };
+                    recvd_pkt.size = bytes - (sizeof(recvd_pkt) - MAX_MESS_LEN);
                     //printf("Start packet payload: %s\n", recvd_pkt.payload);
 
                     if (!active_session /*&& recvd_pkt.flag == PKT_START*/){
@@ -198,11 +199,14 @@ int main(int argc, char *argv[]) {
 
                         ack_pkt.flag = PKT_ACK;
 
-                        printf("Allocating memory for Dst_filename\n");
                         Dst_filename = malloc(recvd_pkt.size + 1);
-                        strcpy(Dst_filename, recvd_pkt.payload);
-                        printf("Allocated memory for Dst_filename\n");
-                        
+                        if (!Dst_filename) {
+                            perror("malloc failed");
+                            exit(1);
+                        }
+                        memcpy(Dst_filename, recvd_pkt.payload, recvd_pkt.size);
+                        Dst_filename[recvd_pkt.size] = '\0';
+
                         file = fopen(Dst_filename, "wb");
                         if (!file) {
                             perror("fopen");
