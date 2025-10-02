@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
                                 
                                 send_pkt = *circ_bbuf_get(&window, i);
-                                //printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
+                                printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
 
                                 transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
                                 sendto_dbg(sock, &send_pkt,
@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
                 
             }
         } else { // timeout occured, resend window//
-            // printf("Timeout occured: retransmitting window\n");
+            printf("Timeout occured: retransmitting window\n");
             for(int i = 0; i < WINDOW_SIZE; i++){
                 ncp_msg *pkt = circ_bbuf_get(&window, i);
                 if(pkt != NULL){ // Packet not received yet, retransmit packet from window
