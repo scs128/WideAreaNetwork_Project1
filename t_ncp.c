@@ -98,13 +98,11 @@ int main(int argc, char *argv[])
     }
 
     //printf("%s\n", Dst_filename);
-    printf("Sending filename: '%s' (%zu bytes)\n", Dst_filename, strlen(Dst_filename));
     ret = send(sock, Dst_filename, strlen(Dst_filename), 0);
     if (ret < 0) {
         perror("tcp_client: error in sending\n");
         exit(1);
     }
-    printf("Send filename\n");
 
     FILE* file = fopen(Src_filename, "rb");
     struct stat file_stats; 
@@ -132,8 +130,8 @@ int main(int argc, char *argv[])
             prev_milestone_bytes = transmitted_bytes;
             gettimeofday(&step, NULL);        }
         /* Send message */
-        printf("Bytes Sent: %d\n", bytes_sent);
-        ret = send(sock, &mess_buf[bytes_sent], bytes_read, 0);
+        //printf("Bytes Sent: %d\n", bytes_sent);
+        ret = send(sock, mess_buf, bytes_read, 0);
         if (ret < 0) {
             perror("tcp_client: error in sending\n");
             exit(1);
