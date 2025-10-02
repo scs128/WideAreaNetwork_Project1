@@ -20,7 +20,7 @@
 #define PKT_ACK        4 
 #define PKT_BUSY       5
 
-#define WINDOW_SIZE 9
+#define WINDOW_SIZE 450
 
 #define MAX_RETRANSMISSIONS 10
 

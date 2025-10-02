@@ -120,6 +120,17 @@ int main(int argc, char *argv[])
         bool first = true;
         gettimeofday(&start, NULL);
 
+        ret = recv(recv_sock, mess_buf, sizeof(mess_buf)-1, 0);
+        mess_buf[ret] = '\0'; // Fixes naming issue
+        Dst_filename = malloc(sizeof(mess_buf) + 1);
+        strcpy(Dst_filename, mess_buf);
+        file = fopen(Dst_filename, "wb");
+        if (!file) {
+            perror("fopen");
+            exit(EXIT_FAILURE);
+        }
+        first = false;
+
         for(;;)
         {
             /* IMPORTANT NOTE: recv is *not* guaranteed to receive a complete
@@ -134,14 +145,7 @@ int main(int argc, char *argv[])
             if (first){
                 printf("Destination file: %s\n", mess_buf);
 
-                Dst_filename = malloc(sizeof(mess_buf) + 1);
-                strcpy(Dst_filename, mess_buf);
-                file = fopen(Dst_filename, "wb");
-                if (!file) {
-                    perror("fopen");
-                    exit(EXIT_FAILURE);
-                }
-                first = false;
+                
             } else {
                 written_bytes += sizeof(mess_buf);
                 fwrite(mess_buf, 1, sizeof(mess_buf)-1, file);
