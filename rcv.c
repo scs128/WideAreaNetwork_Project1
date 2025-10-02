@@ -152,7 +152,7 @@ int main(int argc, char *argv[]) {
         /* (Re)set mask and timeout */
         mask = read_mask;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 200; // LAN - 200, WAN - 40000
+        timeout.tv_usec = 1000; // LAN - 200, WAN - 40000
 
         /* Wait for message or timeout */
         num = select(FD_SETSIZE, &mask, NULL, NULL, &timeout);
