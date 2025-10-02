@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
 
     while(!feof(file))
     {
+        memset(mess_buf, 0, sizeof(mess_buf));
         /* Read message into mess_buf */
         //printf("enter message: ");
         size_t bytes_read = fread(mess_buf, sizeof(char), MAX_MESS_LEN-1, file);
