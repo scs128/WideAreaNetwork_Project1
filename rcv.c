@@ -210,6 +210,7 @@ int main(int argc, char *argv[]) {
                     }else{
                         //printf("Dropped packet. %s:%s is not the active session client.\n", hbuf, sbuf);
                         ack_pkt.flag = PKT_BUSY;
+                        printf("Sequence number: %d was rejected with flag: %d\n", recvd_pkt.seq, recvd_pkt.flag);
                     }
                     sendto_dbg(sock, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&from_addr,
                         from_len);
