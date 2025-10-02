@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
             /* IMPORTANT NOTE: recv is *not* guaranteed to receive a complete
              * message in single call */
             ret = recv(recv_sock, mess_buf, sizeof(mess_buf)-1, 0);
-            mess_buf[ret] = '\0';
+            mess_buf[ret] = '\0'; // Fixes naming issue
             if (ret <= 0) {
                 printf("Client closed connection...closing socket...\n");
                 close(recv_sock);
