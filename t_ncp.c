@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
             prev_milestone_bytes = transmitted_bytes;
             gettimeofday(&step, NULL);        }
         /* Send message */
-        printf("Sending data\n");
+        printf("Bytes Sent: %d\n", bytes_sent);
         ret = send(sock, &mess_buf[bytes_sent], bytes_read, 0);
         if (ret < 0) {
             perror("tcp_client: error in sending\n");
