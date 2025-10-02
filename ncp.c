@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 #include "sendto_dbg.h"
 #include "net_include.h"
@@ -23,7 +24,7 @@ static void Print_help(void);
 ncp_msg *circ_bbuf_get(circular_buffer *cb, int i);
 
 
-/* Global configuration parameters (from command line) */
+/* Global configuration parameters (from command line) *///
 static int Loss_rate;
 static int Mode;
 static char *Server_IP;
