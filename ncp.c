@@ -143,8 +143,8 @@ int main(int argc, char *argv[]) {
             FD_SET(sock, &read_mask);
             mask = read_mask; 
         }
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 10000;
+        timeout.tv_sec = 5;
+        timeout.tv_usec = 0;
         
 
         /* Wait for message (NULL timeout = wait forever) */
@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
                                 
                                 send_pkt = *circ_bbuf_get(&window, i);
-                                printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
+                                //printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
 
                                 transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
                                 sendto_dbg(sock, &send_pkt,
@@ -233,8 +233,6 @@ int main(int argc, char *argv[]) {
                     send_pkt.flag = PKT_START;
                     strcpy(send_pkt.payload, Dst_filename);
                     send_pkt.size = strlen(Dst_filename);
-                    printf("Payload size: %d\n", send_pkt.size);
-                    printf("String length: %d\n", strlen(send_pkt.payload));
 
                     circ_bbuf_push(&window, &send_pkt, send_pkt.seq);
                     //printf("Start packet payload: %s", send_pkt.payload);
@@ -242,7 +240,7 @@ int main(int argc, char *argv[]) {
 
                     transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
                     sendto_dbg(sock, &send_pkt,
-                        sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload)+1, 0,
+                        sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload), 0,
                         servaddr->ai_addr,
                         servaddr->ai_addrlen);
                 }else if(!feof(file) && seq > 0){ // send packets while not at end of file and seq is not 0
@@ -287,7 +285,7 @@ int main(int argc, char *argv[]) {
                 
             }
         } else { // timeout occured, resend window//
-            printf("%d\t%d\n",seq, first_seq + WINDOW_SIZE);
+            // printf("Timeout occured: retransmitting window\n");
             for(int i = 0; i < WINDOW_SIZE; i++){
                 ncp_msg *pkt = circ_bbuf_get(&window, i);
                 if(pkt != NULL){ // Packet not received yet, retransmit packet from window
