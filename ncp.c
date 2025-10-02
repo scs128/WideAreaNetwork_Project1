@@ -321,7 +321,6 @@ int main(int argc, char *argv[]) {
 
 /* Read commandline arguments */
 static void Usage(int argc, char *argv[]) {
-
     if (argc != 5) {
         Print_help();
     }
@@ -339,15 +338,35 @@ static void Usage(int argc, char *argv[]) {
     }
 
     Src_filename = argv[3];
-    Dst_filename = strtok(argv[4], "@");
-    Hostname = strtok(NULL, ":");
-    if (Hostname == NULL) {
-        printf("Error: no hostname provided\n");
+
+    // Parse the destination string: <dest_file_name>@<ip_addr>:<port>
+    char *dest_str = strdup(argv[4]);  // Make a modifiable copy
+    if (!dest_str) {
+        perror("strdup failed");
+        exit(1);
+    }
+
+    Dst_filename = strtok(dest_str, "@");
+    if (Dst_filename == NULL) {
+        fprintf(stderr, "Error: no destination filename before '@'\n");
         Print_help();
     }
+
+    Server_IP = strtok(NULL, ":");
+    if (Server_IP == NULL) {
+        fprintf(stderr, "Error: no server IP after '@'\n");
+        Print_help();
+    }
+
     Port_Str = strtok(NULL, ":");
     if (Port_Str == NULL) {
-        printf("Error: no port provided\n");
+        fprintf(stderr, "Error: no port after ':'\n");
+        Print_help();
+    }
+
+    // No more tokens should be left; if there are, input is malformed
+    if (strtok(NULL, ":") != NULL) {
+        fprintf(stderr, "Error: too many ':' separators in destination string\n");
         Print_help();
     }
 }
