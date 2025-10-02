@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
                         // NACK handling
                         printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
                         bool *buf = recvd_pkt.buffer;
-                        for(int i = 0; i < recvd_pkt.last; i++){
+                        for(int i = 0; i < recvd_pkt.last || (recvd_pkt.last == -1 && i<seq-first_seq); i++){
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
                                 
                                 send_pkt = *circ_bbuf_get(&window, i);

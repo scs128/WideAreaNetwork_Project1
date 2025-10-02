@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
                     rcv_msg ack_pkt = {
                         .flag = PKT_ACK,
                         .seq = expected_seq,
-                        .last = 0
+                        .last = -1
                     };
     
                     // Put together buffer view
