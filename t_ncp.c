@@ -158,32 +158,24 @@ static void Usage(int argc, char *argv[]) {
     Src_filename = argv[1];
 
     // Make a modifiable copy of the destination argument
-    Dst_filename = strdup(argv[2]);
-    if (!Dst_filename) {
+    char *dest_str = strdup(argv[2]);  // Keep original modifiable copy
+    if (!dest_str) {
         perror("strdup failed");
         exit(EXIT_FAILURE);
     }
 
-    // Parse <dest_file_name>@<ip_addr>:<port>
-    Dst_filename = strtok(Dst_filename, "@");
+    Dst_filename = strtok(dest_str, "@");
     Hostname     = strtok(NULL, ":");
     Port_Str     = strtok(NULL, ":");
 
-    if (!Dst_filename) {
-        fprintf(stderr, "Error: no destination file name before '@'\n");
-        Print_help();
-    }
-    if (!Hostname) {
-        fprintf(stderr, "Error: no hostname provided after '@'\n");
-        Print_help();
-    }
-    if (!Port_Str) {
-        fprintf(stderr, "Error: no port provided after ':'\n");
+    if (!Dst_filename || !Hostname || !Port_Str) {
+        fprintf(stderr, "Error: Malformed destination string. Expected format: <file>@<ip>:<port>\n");
         Print_help();
     }
 
-    // Save Server_IP separately (optional, in case it's used elsewhere)
+    // Save Server_IP separately
     Server_IP = Hostname;
+
 }
 
 static void Print_help(void) {
