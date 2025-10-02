@@ -180,6 +180,7 @@ int main(int argc, char *argv[]) {
                         seq++;
                         first_seq++;
                     }else{ // Shift window up to revd_pkt.seq 
+                        printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
                         while(first_seq < recvd_pkt.seq){ // cumulative ack handling 
                             //printf("Popped head of window and shifted. Seq: %d\n", );
                             file_bytes += circ_bbuf_pop(&window)->size;
@@ -205,7 +206,7 @@ int main(int argc, char *argv[]) {
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
                                 
                                 send_pkt = *circ_bbuf_get(&window, i);
-                                //printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
+                                printf("Retransmitting window index %d - %d\n", i, send_pkt.seq);
 
                                 transmitted_bytes += sizeof(send_pkt)-MAX_MESS_LEN+strlen(send_pkt.payload);
                                 sendto_dbg(sock, &send_pkt,
