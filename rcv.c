@@ -336,7 +336,7 @@ int main(int argc, char *argv[]) {
     
                     sendto_dbg(sock, &ack_pkt, sizeof(ack_pkt), 0, (struct sockaddr *)&session_addr,
                            session_len);
-                    printf("Sending acknowledgement ack seq: %d\tlast: %d\n", ack_pkt.seq, ack_pkt.last);
+                    //printf("Sending acknowledgement ack seq: %d\tlast: %d\n", ack_pkt.seq, ack_pkt.last);
                 }
             }/* else{
                 //printf("timeout...nothing received for 10 seconds.\n");
