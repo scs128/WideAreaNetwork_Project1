@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
             mask = read_mask; 
         }
         timeout.tv_sec = 0;
-        timeout.tv_usec = 3000;
+        timeout.tv_usec = 10000;
         
 
         /* Wait for message (NULL timeout = wait forever) */
@@ -287,7 +287,7 @@ int main(int argc, char *argv[]) {
                 
             }
         } else { // timeout occured, resend window//
-            printf("Timeout occured: retransmitting window\n");
+            printf("%d\n", seq < first_seq + WINDOW_SIZE);
             for(int i = 0; i < WINDOW_SIZE; i++){
                 ncp_msg *pkt = circ_bbuf_get(&window, i);
                 if(pkt != NULL){ // Packet not received yet, retransmit packet from window
