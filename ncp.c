@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
                         }
 
                         // NACK handling
-                        //printf("Current Seq: %d\n", seq);
+                        printf("Current Seq: %d\tFirst Seq: %d\n", seq, first_seq);
                         bool *buf = recvd_pkt.buffer;
                         for(int i = 0; i < seq-first_seq; i++){
                             if(!buf[i]){ // Packet not received yet, retransmit packet from window
