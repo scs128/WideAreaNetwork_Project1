@@ -85,9 +85,6 @@ int main(int argc, char *argv[])
             continue;
         }
         printf("Connected!\n\n");
-
-        gettimeofday(&step, NULL);
-        gettimeofday(&start, NULL);
         
         break; /* got a valid socket */
     }
@@ -96,6 +93,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "No valid address found...exiting\n");
         exit(1);
     }
+
+    gettimeofday(&step, NULL);
+    gettimeofday(&start, NULL);
 
     //printf("%s\n", Dst_filename);
     ret = send(sock, Dst_filename, strlen(Dst_filename), 0);
@@ -129,7 +129,8 @@ int main(int argc, char *argv[])
             // Reset or advance variables
             milestone++;
             prev_milestone_bytes = transmitted_bytes;
-            gettimeofday(&step, NULL);        }
+            gettimeofday(&step, NULL);        
+        }
         /* Send message */
         //printf("Bytes Sent: %d\n", bytes_sent);
         ret = send(sock, mess_buf, bytes_read, 0);
