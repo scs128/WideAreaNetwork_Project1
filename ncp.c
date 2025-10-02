@@ -413,7 +413,7 @@ int circ_bbuf_push(circular_buffer *cb, ncp_msg *packet, int i){
     }
 
     // Allocate memory for new packet and copy
-    cb->buffer[index] = malloc(sizeof(struct upkt));
+    cb->buffer[index] = malloc(sizeof(ncp_msg));
     if (cb->buffer[index] == NULL) {
         perror("malloc failed");
         return -1;
