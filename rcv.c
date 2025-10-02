@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
     // NOTE: Dst_filename will eventually not be hard coded, and will be read in from the start message.
     static char *Dst_filename = "output.txt";
-    FILE* file = fopen(Dst_filename, "w");;
+    FILE* file = fopen(Dst_filename, "wb");;
     if (!file) {
         perror("fopen");
         exit(EXIT_FAILURE);

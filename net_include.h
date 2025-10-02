@@ -7,7 +7,7 @@
 #include <netdb.h>
 #include <stdbool.h>
 
-#define MAX_MESS_LEN 1400
+#define MAX_MESS_LEN 1366
 
 #define MB 1000000
 
